@@ -1,0 +1,10 @@
+# Gradle
+.gradle/
+build/
+
+# Local configuration file
+local.properties
+
+# Android Studio
+.idea/
+.kotlinc/
