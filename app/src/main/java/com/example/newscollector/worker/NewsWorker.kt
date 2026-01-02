@@ -2,6 +2,7 @@ package com.example.newscollector.worker
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.ui.input.key.type
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.newscollector.NewsViewModel
@@ -24,6 +25,7 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
     private val userPrefs = UserPreferences(appContext)
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        if (ApiClient.BEARER_TOKEN.isBlank()) return@withContext Result.failure()
         try {
             NewsViewModel._isRefreshing.value = true
 
@@ -67,15 +69,25 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
     private suspend fun callLLMToExtractNews(text: String, source: Source, modelId: String): List<News> {
         val prompt = "Extract headlines/summaries as JSON: [{\"title\":\"..\",\"summary\":\"..\"}] from: $text"
         val request = ChatRequest(model = modelId, messages = listOf(ChatMessage("user", prompt)))
-        val response = ApiClient.api.getChatCompletion("Bearer ${ApiClient.BEARER_TOKEN}", request)
-        var json = response.choices.firstOrNull()?.message?.content ?: ""
+        return try {
+            val response =
+                ApiClient.api.getChatCompletion("Bearer ${ApiClient.BEARER_TOKEN}", request)
+            var json = response.choices.firstOrNull()?.message?.content ?: ""
+            json = cleanJson(json)
 
-        json = cleanJson(json)
-
-        val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
-        val rawList: List<Map<String, String>> = Gson().fromJson(json, type)
-        return rawList.map {
-            News(it["title"] ?: "", it["summary"] ?: "", source.url, LocalDateTime.now(), source)
+            val type =
+                object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
+            val rawList: List<Map<String, String>> = Gson().fromJson(json, type)
+            rawList.map {
+                News(it["title"] ?: "", it["summary"] ?: "", source.url, LocalDateTime.now(), source)
+            }
+        } catch (e: retrofit2.HttpException) {
+            val errorJson = e.response()?.errorBody()?.string()
+            // Log.e("NewsWorker", "LLM Error: $errorJson")
+            emptyList()
+        }
+        catch (e: Exception) {
+            emptyList()
         }
     }
 
@@ -84,24 +96,50 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
         val prompt = "Group these into events. Return JSON: [{\"title\":\"..\",\"summary\":\"..\",\"ids\":[0,1],\"importance\":8}]. Data: $listText"
 
         val request = ChatRequest(model = modelId, messages = listOf(ChatMessage("user", prompt)))
-        val response = ApiClient.api.getChatCompletion("Bearer ${ApiClient.BEARER_TOKEN}", request)
-        var json = cleanJson(response.choices.firstOrNull()?.message?.content ?: "")
 
-        val type = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>(){}.type
-        val groups: List<Map<String, Any>> = Gson().fromJson(json, type)
+        return try {
+            val response = ApiClient.api.getChatCompletion("Bearer ${ApiClient.BEARER_TOKEN}", request)
+            var json = cleanJson(response.choices.firstOrNull()?.message?.content ?: "")
 
-        return groups.map { group ->
-            val ids = (group["ids"] as? List<*>)?.map { (it as Double).toInt() } ?: emptyList()
-            val matching = ids.mapNotNull { allNews.getOrNull(it) }
-            UnifiedNews(
-                title = group["title"] as String,
-                mainContent = group["summary"] as String,
-                publishedDate = LocalDateTime.now(),
-                sources = matching.map { it.source }.distinct(),
-                originalArticles = matching,
-                importanceScore = (group["importance"] as Double).toInt()
-            )
-        }.sortedByDescending { it.importanceScore }
+            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>(){}.type
+            val groups: List<Map<String, Any>> = Gson().fromJson(json, type)
+
+            groups.map { group ->
+                // Safe extraction of IDs: GSON often parses numbers as Doubles
+                val ids = (group["ids"] as? List<*>)?.map {
+                    when(it) {
+                        is Double -> it.toInt()
+                        is String -> it.toIntOrNull() ?: 0
+                        else -> 0
+                    }
+                } ?: emptyList()
+
+                val matching = ids.mapNotNull { allNews.getOrNull(it) }
+
+                UnifiedNews(
+                    title = group["title"] as? String ?: "Untitled Event",
+                    mainContent = group["summary"] as? String ?: "",
+                    publishedDate = LocalDateTime.now(),
+                    sources = matching.map { it.source }.distinct(),
+                    originalArticles = matching,
+                    // Safe extraction of importanceScore
+                    importanceScore = (group["importance"] as? Double)?.toInt() ?: 0
+                )
+            }.sortedByDescending { it.importanceScore }
+        } catch (e: Exception) {
+            Log.e("NewsWorker", "Unification Step Failed: ${e.message}")
+            // Fallback: If unification fails, return articles as individual events
+            allNews.map {
+                UnifiedNews(
+                    title = it.title,
+                    mainContent = it.content,
+                    publishedDate = it.date,
+                    sources = listOf(it.source),
+                    originalArticles = listOf(it),
+                    importanceScore = 0
+                )
+            }
+        }
     }
 
     private fun cleanJson(raw: String): String {

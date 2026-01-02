@@ -2,13 +2,14 @@ package com.example.newscollector.data
 
 import java.time.LocalDateTime
 import java.util.UUID
+import com.google.gson.annotations.SerializedName
 
 data class Source(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String,
-    val url: String,
-    val isRss: Boolean,
-    val limit: Int = 10
+    @SerializedName("id") val id: String = UUID.randomUUID().toString(),
+    @SerializedName("name") val name: String,
+    @SerializedName("url") val url: String,
+    @SerializedName("isRss") val isRss: Boolean,
+    @SerializedName("limit") val limit: Int = 10
 )
 
 data class News(
@@ -30,38 +31,40 @@ data class UnifiedNews(
 )
 
 data class OpenRouterModel(
-    val id: String, // mapped from canonical_slug or id
-    val name: String,
-    val architecture: ModelArchitecture,
-    val pricing: ModelPricing
+    @SerializedName("id") val id: String, // mapped from canonical_slug or id
+    @SerializedName("name") val name: String,
+    @SerializedName("architecture") val architecture: ModelArchitecture?,
+    @SerializedName("pricing") val pricing: ModelPricing?
 )
 
 data class ModelArchitecture(
-    val input_modalities: List<String>,
-    val output_modalities: List<String>
+    @SerializedName("input_modalities") val input_modalities: List<String>,
+    @SerializedName("output_modalities") val output_modalities: List<String>
 )
 
 data class ModelPricing(
-    val prompt: String,
-    val completion: String
+    @SerializedName("prompt") val prompt: String?,
+    @SerializedName("completion") val completion: String?
 )
 
 data class OpenRouterResponse(
-    val data: List<OpenRouterModel>
+    @SerializedName("data") val data: List<OpenRouterModel>
 )
 
 data class ChatRequest(
-    val model: String,
-    val messages: List<ChatMessage>
+    @SerializedName("model") val model: String,
+    @SerializedName("messages") val messages: List<ChatMessage>
 )
 
 data class ChatMessage(
-    val role: String,
-    val content: String
+    @SerializedName("role") val role: String,
+    @SerializedName("content") val content: String
 )
 
 data class ChatResponse(
-    val choices: List<ChatChoice>
+    @SerializedName("choices") val choices: List<ChatChoice>
 )
 
-data class ChatChoice(val message: ChatMessage)
+data class ChatChoice(
+    @SerializedName("message") val message: ChatMessage
+)

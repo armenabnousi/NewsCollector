@@ -67,8 +67,23 @@ fun NewsCollectorApp(viewModel: NewsViewModel = viewModel()) {
 @Composable
 fun MainTabsScreen(viewModel: NewsViewModel, onOpenSettings: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val error by viewModel.errorMessage.collectAsState()
+
+    LaunchedEffect(error) {
+        error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.errorMessage.value = null
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState)},
+        floatingActionButton = {
+            FloatingActionButton(onClick = { viewModel.refreshNews() }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+            }
+        },
         topBar = {
             Column {
                 TopAppBar(
@@ -275,7 +290,17 @@ fun SettingsScreen(viewModel: NewsViewModel, onBack: () -> Unit) {
                 label = { Text("OpenRouter Bearer Token") },
                 placeholder = {Text("sk-or-v1-... (enter token here)")},
                 modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PartialPasswordVisualTransformation(visibleChars = 4)
+                visualTransformation = PartialPasswordVisualTransformation(visibleChars = 4),
+                isError = tokenInput.isBlank(),
+                supportingText = {
+                    if (tokenInput.isBlank()) {
+                        Text(
+                            text = "Token is required to fetch news",
+                            color = MaterialTheme.colorScheme.error)
+                    } else if (tokenInput.length < 10) {
+                        Text(text = "Token seems too short", color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -295,7 +320,7 @@ fun SettingsScreen(viewModel: NewsViewModel, onBack: () -> Unit) {
                 onExpandedChange = { expanded = !expanded }
             ) {
                 val selectedText = viewModel.selectedModel.value?.let {
-                    "${it.name} (${it.pricing.prompt}, ${it.pricing.completion})"
+                    "${it.name} (${it.pricing?.prompt ?: "nan"}, ${it.pricing?.completion ?: "nan"})"
                 } ?: "Select a Model"
 
                 OutlinedTextField(
@@ -316,7 +341,7 @@ fun SettingsScreen(viewModel: NewsViewModel, onBack: () -> Unit) {
                     // Inside SettingsScreen function in MainActivity.kt
                     viewModel.availableModels.forEach { model ->
                         DropdownMenuItem(
-                            text = { Text("${model.name} (${model.pricing.prompt}, ${model.pricing.completion})") },
+                            text = { Text("${model.name} (${model.pricing?.prompt ?: "nan"}, ${model.pricing?.completion ?: "nan"})") },
                             onClick = {
                                 // Change this line to use the new save function:
                                 viewModel.selectAndSaveModel(model)

@@ -19,3 +19,23 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep your data models so GSON can parse them
+-keep class com.example.newscollector.data.** { *; }
+-keep class com.example.newscollector.api.** { *; }
+-keep interface com.example.newscollector.api.** { *; }
+
+# Retrofit rules
+-dontwarn retrofit2.**
+-dontwarn okhttp3.**
+-keep class retrofit2.** { *; }
+-keep class com.google.gson.** { *; }
+-keepattributes Signature, InnerClasses, EnclosingMethod
+
+# Gson rules
+-keepattributes *Annotation*
+-keep class com.google.gson.reflect.TypeToken { *; }
+
+# Jsoup rules
+-keep class org.jsoup.** { *; }
+

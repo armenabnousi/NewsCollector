@@ -35,6 +35,7 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
     var selectedModel = mutableStateOf<OpenRouterModel?>(null)
     var savedDisplayName = mutableStateOf("None")
     val openRouterToken = userPrefs.openRouterBearerToken
+    val errorMessage = MutableStateFlow<String?>(null)
 
     init {
         viewModelScope.launch {
@@ -58,6 +59,10 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshNews() {
+        if (ApiClient.BEARER_TOKEN.isBlank()) {
+            errorMessage.value = "Please enter your OpenRouter Bearer Token in Settings first."
+            return
+        }
         val workRequest = OneTimeWorkRequestBuilder<NewsWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
@@ -81,6 +86,10 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun fetchModels() {
+        if (ApiClient.BEARER_TOKEN.isBlank()) {
+            errorMessage.value = "Please enter your OpenRouter Bearer Token"
+            return
+        }
         viewModelScope.launch {
             isFetchingModels.value = true
             try {
@@ -88,8 +97,9 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
 
                 // 2. FIXED FILTER & CONTAINS (Standard Kotlin versions now used)
                 val filtered = response.data.filter { model ->
-                    model.architecture.input_modalities.contains("text") &&
-                            model.architecture.output_modalities.contains("text")
+                    val inputIsText = model.architecture?.input_modalities?.contains("text") ?: false
+                    val outputIsText = model.architecture?.output_modalities?.contains("text") ?: false
+                    inputIsText && outputIsText
                 }
 
                 availableModels.clear()
@@ -105,6 +115,11 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } catch (e: Exception) {
+                val writer = java.io.StringWriter()
+                e.printStackTrace(java.io.PrintWriter(writer))
+                val fullStackTrace = writer.toString()
+
+                errorMessage.value = "{$fullStackTrace} \nFailed to fetch models. Check your token or internet. Error: ${e.message}"
                 e.printStackTrace()
             } finally {
                 isFetchingModels.value = false
@@ -113,7 +128,7 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectAndSaveModel(model: OpenRouterModel) {
-        val displayName = "${model.name} (${model.pricing.prompt}, ${model.pricing.completion})"
+        val displayName = "${model.name} (${model.pricing?.prompt ?: "nan"}, ${model.pricing?.completion ?: "nan"})"
         selectedModel.value = model
         savedDisplayName.value = displayName
 
