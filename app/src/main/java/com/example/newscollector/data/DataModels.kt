@@ -13,21 +13,21 @@ data class Source(
 )
 
 data class News(
-    val title: String,
-    val content: String,
-    val url: String,
-    val date: LocalDateTime,
-    val source: Source
+    @SerializedName("title") val title: String,
+    @SerializedName("content") val content: String,
+    @SerializedName("url") val url: String,
+    @SerializedName("date") val date: LocalDateTime,
+    @SerializedName("source") val source: Source
 )
 
 data class UnifiedNews(
-    val id: String = UUID.randomUUID().toString(),
-    val title: String,
-    val mainContent: String,
-    val publishedDate: LocalDateTime,
-    val sources: List<Source>,
-    val originalArticles: List<News>,
-    val importanceScore: Int = 0
+    @SerializedName("id") val id: String = UUID.randomUUID().toString(),
+    @SerializedName("title") val title: String,
+    @SerializedName("mainContent") val mainContent: String,
+    @SerializedName("publishedDate") val publishedDate: LocalDateTime,
+    @SerializedName("sources") val sources: List<Source>,
+    @SerializedName("originalArticle") val originalArticles: List<News>,
+    @SerializedName("importanceScore") val importanceScore: Int = 0
 )
 
 data class OpenRouterModel(

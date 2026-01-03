@@ -9,6 +9,8 @@ import com.example.newscollector.NewsViewModel
 import com.example.newscollector.api.ApiClient
 import com.example.newscollector.data.*
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -62,6 +64,11 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
             Result.success()
         } catch (e: Exception) {
             NewsViewModel._isRefreshing.value = false
+            val writer = java.io.StringWriter()
+            e.printStackTrace(java.io.PrintWriter(writer))
+            val fullStackTrace = writer.toString()
+            NewsViewModel.errorMessage.value = "error: ${e.message}\n${fullStackTrace}"
+            Log.e("NewsWorker", "Error in NewsWorker: ${e.message}", e)
             Result.failure()
         }
     }
@@ -75,11 +82,17 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
             var json = response.choices.firstOrNull()?.message?.content ?: ""
             json = cleanJson(json)
 
-            val type =
-                object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
-            val rawList: List<Map<String, String>> = Gson().fromJson(json, type)
-            rawList.map {
-                News(it["title"] ?: "", it["summary"] ?: "", source.url, LocalDateTime.now(), source)
+            // Use a concrete Array class reference. This is safe for R8/ProGuard.
+            val rawArray = Gson().fromJson(json, Array<ExtractedNewsDTO>::class.java)
+
+            return rawArray.map {
+                News(
+                    it.title ?: "",
+                    it.summary ?: "",
+                    source.url,
+                    LocalDateTime.now(),
+                    source
+                )
             }
         } catch (e: retrofit2.HttpException) {
             val errorJson = e.response()?.errorBody()?.string()
@@ -101,29 +114,20 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
             val response = ApiClient.api.getChatCompletion("Bearer ${ApiClient.BEARER_TOKEN}", request)
             var json = cleanJson(response.choices.firstOrNull()?.message?.content ?: "")
 
-            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>(){}.type
-            val groups: List<Map<String, Any>> = Gson().fromJson(json, type)
+            // Use the concrete DTO array
+            val rawArray = Gson().fromJson(json, Array<UnifiedNewsDTO>::class.java)
 
-            groups.map { group ->
-                // Safe extraction of IDs: GSON often parses numbers as Doubles
-                val ids = (group["ids"] as? List<*>)?.map {
-                    when(it) {
-                        is Double -> it.toInt()
-                        is String -> it.toIntOrNull() ?: 0
-                        else -> 0
-                    }
-                } ?: emptyList()
-
+            return rawArray.map { group ->
+                val ids = group.ids ?: emptyList()
                 val matching = ids.mapNotNull { allNews.getOrNull(it) }
 
                 UnifiedNews(
-                    title = group["title"] as? String ?: "Untitled Event",
-                    mainContent = group["summary"] as? String ?: "",
+                    title = group.title ?: "Untitled Event",
+                    mainContent = group.summary ?: "",
                     publishedDate = LocalDateTime.now(),
                     sources = matching.map { it.source }.distinct(),
                     originalArticles = matching,
-                    // Safe extraction of importanceScore
-                    importanceScore = (group["importance"] as? Double)?.toInt() ?: 0
+                    importanceScore = group.importance ?: 0
                 )
             }.sortedByDescending { it.importanceScore }
         } catch (e: Exception) {
@@ -149,3 +153,14 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
         return clean.trim()
     }
     }
+
+private data class ExtractedNewsDTO(
+    @SerializedName("title") val title: String?,
+    @SerializedName("summary") val summary: String?
+)
+private data class UnifiedNewsDTO(
+    @SerializedName("title") val title: String?,
+    @SerializedName("summary") val summary: String?,
+    @SerializedName("ids") val ids: List<Int>?,
+    @SerializedName("importance") val importance: Int?
+)

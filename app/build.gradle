@@ -27,6 +27,9 @@ android {
             ]
         }
         release {
+            manifestPlaceholders = [
+                    networkSecurityConfig: "@xml/network_security_config"
+            ]
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

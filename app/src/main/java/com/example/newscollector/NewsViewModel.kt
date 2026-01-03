@@ -25,6 +25,7 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         val _unifiedNewsList = MutableStateFlow<List<UnifiedNews>>(emptyList())
         val _isRefreshing = MutableStateFlow(false)
+        val errorMessage = mutableStateOf<String?>(null)
     }
 
     val unifiedNewsList: StateFlow<List<UnifiedNews>> = _unifiedNewsList
@@ -63,15 +64,22 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
             errorMessage.value = "Please enter your OpenRouter Bearer Token in Settings first."
             return
         }
-        val workRequest = OneTimeWorkRequestBuilder<NewsWorker>()
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
+        try {
+            val workRequest = OneTimeWorkRequestBuilder<NewsWorker>()
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .build()
 
-        WorkManager.getInstance(getApplication()).enqueueUniqueWork(
-            "refresh_news_task",
-            ExistingWorkPolicy.REPLACE,
-            workRequest
-        )
+            WorkManager.getInstance(getApplication()).enqueueUniqueWork(
+                "refresh_news_task",
+                ExistingWorkPolicy.REPLACE,
+                workRequest
+            )
+        } catch (e: Exception) {
+            val writer = java.io.StringWriter()
+            e.printStackTrace(java.io.PrintWriter(writer))
+            val fullStackTrace = writer.toString()
+            errorMessage.value = "Failed to refresh news. Error:  ${e.javaClass.simpleName} - ${e.message} \n {$fullStackTrace}"
+        }
     }
 
     fun addSource(name: String, url: String, isRss: Boolean, limit: Int) {

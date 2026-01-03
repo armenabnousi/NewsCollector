@@ -24,17 +24,24 @@
 -keep class com.example.newscollector.data.** { *; }
 -keep class com.example.newscollector.api.** { *; }
 -keep interface com.example.newscollector.api.** { *; }
+-keep class com.example.newscollector.worker.ExtractedNewsDTO { *; }
+-keep class com.example.newscollector.worker.UnifiedNewsDTO { *; }
+
+
 
 # Retrofit rules
 -dontwarn retrofit2.**
 -dontwarn okhttp3.**
 -keep class retrofit2.** { *; }
--keep class com.google.gson.** { *; }
 -keepattributes Signature, InnerClasses, EnclosingMethod
 
 # Gson rules
+-keep class com.google.gson.** { *; }
 -keepattributes *Annotation*
 -keep class com.google.gson.reflect.TypeToken { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
 
 # Jsoup rules
 -keep class org.jsoup.** { *; }
