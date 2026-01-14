@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.core.intPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -17,6 +18,7 @@ class UserPreferences(private val context: Context) {
         // Key for storing the model ID (the canonical_slug)
         val SELECTED_MODEL_ID = stringPreferencesKey("selected_model_id")
         val SELECTED_MODEL_NAME = stringPreferencesKey("selected_model_name")
+        val SELECTED_MODEL_CONTEXT_LENGTH = intPreferencesKey("selected_model_context_length")
         val SOURCES_KEY = stringPreferencesKey("saved_sources")
         val OPENROUTER_TOKEN = stringPreferencesKey("openrouter_bearer_token")
     }
@@ -26,6 +28,8 @@ class UserPreferences(private val context: Context) {
         .map { it[SELECTED_MODEL_ID] }
     val selectedModelName: Flow<String?> = context.dataStore.data
         .map { it[SELECTED_MODEL_NAME] }
+    val selectedModelContextLength: Flow<Int?> = context.dataStore.data
+        .map{ it[SELECTED_MODEL_CONTEXT_LENGTH] }
     val openRouterBearerToken: Flow<String?> = context.dataStore.data
         .map{ it[OPENROUTER_TOKEN] }
     val savedSources: Flow<List<Source>> = context.dataStore.data.map {
@@ -36,10 +40,11 @@ class UserPreferences(private val context: Context) {
     }
 
     // Save the model ID
-    suspend fun saveSelectedModelId(modelId: String, modelName: String) {
+    suspend fun saveSelectedModelId(modelId: String, modelName: String, modelContextLength: Int) {
         context.dataStore.edit { preferences ->
             preferences[SELECTED_MODEL_ID] = modelId
             preferences[SELECTED_MODEL_NAME] = modelName
+            preferences[SELECTED_MODEL_CONTEXT_LENGTH] = modelContextLength
         }
     }
 

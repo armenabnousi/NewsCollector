@@ -340,8 +340,14 @@ fun SettingsScreen(viewModel: NewsViewModel, onBack: () -> Unit) {
                 ) {
                     // Inside SettingsScreen function in MainActivity.kt
                     viewModel.availableModels.forEach { model ->
+                        val promptPriceStr = model.pricing?.prompt?.toDoubleOrNull()?.let {
+                            "%.4f".format(it * 1_000_000)
+                        } ?: "nan"
+                        val completionPriceStr = model.pricing?.completion?.toDoubleOrNull()?.let {
+                            "%.4f".format(it * 1_000_000)
+                        } ?: "nan"
                         DropdownMenuItem(
-                            text = { Text("${model.name} (${model.pricing?.prompt ?: "nan"}, ${model.pricing?.completion ?: "nan"})") },
+                            text = { Text("${model.name} (${promptPriceStr}, ${completionPriceStr}); (${model.context_length})")},
                             onClick = {
                                 // Change this line to use the new save function:
                                 viewModel.selectAndSaveModel(model)

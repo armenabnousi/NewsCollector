@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import com.example.newscollector.api.ApiClient
 import kotlinx.coroutines.flow.first
+import android.util.Log
 
 class NewsViewModel(application: Application) : AndroidViewModel(application) {
     private val _sources = mutableStateListOf<Source>()
@@ -35,12 +36,16 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
     var availableModels = mutableStateListOf<OpenRouterModel>()
     var selectedModel = mutableStateOf<OpenRouterModel?>(null)
     var savedDisplayName = mutableStateOf("None")
+    var contextLength = mutableStateOf(6000)
     val openRouterToken = userPrefs.openRouterBearerToken
     val errorMessage = MutableStateFlow<String?>(null)
 
     init {
         viewModelScope.launch {
             userPrefs.selectedModelName.collect { name -> savedDisplayName.value = name ?: "None" }
+        }
+        viewModelScope.launch {
+            userPrefs.selectedModelContextLength.collect { length -> contextLength.value = length ?: 6000 }
         }
         viewModelScope.launch {
             userPrefs.savedSources.first().let { loaded ->
@@ -108,7 +113,10 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
                     val inputIsText = model.architecture?.input_modalities?.contains("text") ?: false
                     val outputIsText = model.architecture?.output_modalities?.contains("text") ?: false
                     inputIsText && outputIsText
-                }
+                }.sortedWith(compareBy(nullsLast(), { model ->
+                    model.pricing?.prompt?.toDoubleOrNull()
+                })
+                )
 
                 availableModels.clear()
                 availableModels.addAll(filtered)
@@ -136,12 +144,22 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectAndSaveModel(model: OpenRouterModel) {
-        val displayName = "${model.name} (${model.pricing?.prompt ?: "nan"}, ${model.pricing?.completion ?: "nan"})"
+        Log.d("News", "Selected Model: ${model.id}")
+
+
+        val promptPriceStr = model.pricing?.prompt?.toDoubleOrNull()?.let {
+            "%.4f".format(it * 1_000_000)
+        } ?: "nan"
+        val completionPriceStr = model.pricing?.completion?.toDoubleOrNull()?.let {
+            "%.4f".format(it * 1_000_000)
+        } ?: "nan"
+        Log.d("News", "price strs: $promptPriceStr, $completionPriceStr")
+        val displayName = "${model.name} ($${promptPriceStr}, $${completionPriceStr}); (${model.context_length})"
         selectedModel.value = model
         savedDisplayName.value = displayName
-
+        contextLength.value = model.context_length
         viewModelScope.launch {
-            userPrefs.saveSelectedModelId(model.id, displayName)
+            userPrefs.saveSelectedModelId(model.id, displayName, model.context_length)
         }
     }
 

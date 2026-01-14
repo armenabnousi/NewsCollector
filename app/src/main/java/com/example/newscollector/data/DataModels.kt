@@ -34,7 +34,8 @@ data class OpenRouterModel(
     @SerializedName("id") val id: String, // mapped from canonical_slug or id
     @SerializedName("name") val name: String,
     @SerializedName("architecture") val architecture: ModelArchitecture?,
-    @SerializedName("pricing") val pricing: ModelPricing?
+    @SerializedName("pricing") val pricing: ModelPricing?,
+    @SerializedName("context_length") val context_length: Int = 6000
 )
 
 data class ModelArchitecture(

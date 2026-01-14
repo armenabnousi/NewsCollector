@@ -32,6 +32,7 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
             NewsViewModel._isRefreshing.value = true
 
             val modelId = userPrefs.selectedModelId.first() ?: return@withContext Result.failure()
+            val contextLength = userPrefs.selectedModelContextLength.first() ?: return@withContext Result.failure()
             val sources = userPrefs.savedSources.first()
             val allExtractedNews = mutableListOf<News>()
 
@@ -40,7 +41,8 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
                 try {
                     val doc = Jsoup.connect(source.url).get()
                     val pageText = doc.body().text()
-                    val chunks = pageText.chunked(5000)
+                    val chunkSize = (contextLength - 1000).coerceAtLeast(1000)
+                    val chunks = pageText.chunked(chunkSize)
 
                     chunks.forEach { chunk ->
                         val currentCount = allExtractedNews.count { it.source == source }
@@ -74,7 +76,7 @@ class NewsWorker(appContext: Context, workerParams: WorkerParameters) :
     }
 
     private suspend fun callLLMToExtractNews(text: String, source: Source, modelId: String): List<News> {
-        val prompt = "Extract headlines/summaries as JSON: [{\"title\":\"..\",\"summary\":\"..\"}] from: $text"
+        val prompt = "This text is extracted from a news webpage. We want to extract all the headlines. Given the text, extract headlines/summaries as JSON: [{\"title\":\"..\",\"summary\":\"..\"}]. Do not group the news together, each should be its own item. Here is the text: ```$text```"
         val request = ChatRequest(model = modelId, messages = listOf(ChatMessage("user", prompt)))
         return try {
             val response =
